@@ -54,6 +54,12 @@ class Reference(object):
     def __hash__(self):
         return hash(str(self))
 
+def RefOrAlias(s):
+    try:
+        return NodeId(s)
+    except Exception:
+        return s
+
 class Node(object):
     def __init__(self):
         self.id = NodeId()
@@ -79,7 +85,7 @@ class Node(object):
     def parseXML(self, xmlelement):
         for idname in ['NodeId', 'NodeID', 'nodeid']:
             if xmlelement.hasAttribute(idname):
-                self.id = NodeId(xmlelement.getAttribute(idname))
+                self.id = RefOrAlias(xmlelement.getAttribute(idname))
 
         for (at, av) in xmlelement.attributes.items():
             if at == "BrowseName":
@@ -118,16 +124,14 @@ class Node(object):
         for ref in xmlelement.childNodes:
             if ref.nodeType != ref.ELEMENT_NODE:
                 continue
-            source = NodeId(str(self.id))  # deep-copy of the nodeid
-            target = NodeId(ref.firstChild.data)
+            source = RefOrAlias(str(self.id))  # deep-copy of the nodeid
+            target = RefOrAlias(ref.firstChild.data)
+
             reftype = None
             forward = True
             for (at, av) in ref.attributes.items():
                 if at == "ReferenceType":
-                    if '=' in av:
-                        reftype = NodeId(av)
-                    else:
-                        reftype = av  # alias, such as "HasSubType"
+                    reftype = RefOrAlias(av)
                 elif at == "IsForward":
                     forward = not "false" in av.lower()
             self.references.add(Reference(source, reftype, target, forward))
