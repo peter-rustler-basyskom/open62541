@@ -153,6 +153,9 @@ class Node(object):
     def replaceAliases(self, aliases):
         if str(self.id) in aliases:
             self.id = NodeId(aliases[self.id])
+        if isinstance(self, VariableNode) or isinstance(self, VariableTypeNode):
+            if str(self.dataType) in aliases:
+                self.dataType = NodeId(aliases[self.dataType])
         new_refs = set()
         for ref in self.references:
             if str(ref.source) in aliases:
@@ -245,10 +248,7 @@ class VariableNode(Node):
             elif at == "MinimumSamplingInterval":
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
-                if "=" in av:
-                    self.dataType = NodeId(av)
-                else:
-                    self.dataType = av
+                self.dataType = RefOrAlias(av)
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -256,7 +256,7 @@ class VariableNode(Node):
             if x.localName == "Value":
                 self.xmlValueDef = x
             elif x.localName == "DataType":
-                self.dataType = NodeId(str(x))
+                self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
             elif x.localName == "ArrayDimensions":
