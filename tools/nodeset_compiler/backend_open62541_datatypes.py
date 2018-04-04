@@ -72,7 +72,8 @@ def generateExpandedNodeIdCode(value):
     if value.i != None:
         return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
     elif value.s != None:
-        return "UA_EXPANDEDNODEID_STRING(ns[%s], %s)" % (str(value.ns), value.s.replace('"', r'\"'))
+        vs = makeCLiteral(value.s)
+        return "UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateDateTimeCode(value):
