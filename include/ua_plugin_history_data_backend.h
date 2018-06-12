@@ -14,23 +14,60 @@ extern "C" {
 
 #include "ua_types.h"
 
+typedef enum {
+    MATCH_EQUAL,
+    MATCH_AFTER,
+    MATCH_EQUAL_OR_AFTER,
+    MATCH_BEFORE,
+    MATCH_EQUAL_OR_BEFORE
+} MatchStrategy;
+
 typedef struct {
     void *context;
-    UA_StatusCode (*getHistoryData)(void * context,
-                                    UA_DateTime start,
-                                    UA_DateTime end,
-                                    UA_NodeId * nodeId,
-                                    size_t skip,
-                                    size_t maxSize,
-                                    UA_UInt32 numValuesPerNode,
-                                    UA_Boolean returnBounds,
-                                    UA_DataValue ** result,
-                                    size_t * resultSize,
-                                    UA_Boolean * hasMoreData);
+    //    UA_StatusCode (*getHistoryData)(void * context,
+    //                                    UA_DateTime start,
+    //                                    UA_DateTime end,
+    //                                    UA_NodeId * nodeId,
+    //                                    size_t skip,
+    //                                    size_t maxSize,
+    //                                    UA_UInt32 numValuesPerNode,
+    //                                    UA_Boolean returnBounds,
+    //                                    UA_DataValue ** result,
+    //                                    size_t * resultSize,
+    //                                    UA_Boolean * hasMoreData);
 
-    UA_StatusCode (*addHistoryData)(void * context,
-                                    UA_DataValue * value,
-                                    UA_NodeId * nodeId);
+    void * (*getNodeIdContext)(void *context,
+                               const UA_NodeId *nodeId);
+
+    UA_StatusCode (*insertHistoryData)(void * nodeIdContext,
+                                       UA_DataValue * value);
+
+    size_t (*getDateTimeMatch)(const void * nodeIdContext,
+                               const UA_DateTime timestamp,
+                               const MatchStrategy strategy);
+
+    size_t (*getEnd)(const void * nodeIdContext);
+    size_t (*lastIndex)(const void * nodeIdContext);
+    size_t (*firstIndex)(const void * nodeIdContext);
+
+    size_t (*resultSize)(const void* nodeIdContext,
+                         size_t startIndex,
+                         size_t endIndex);
+
+    size_t (*copyDataValues)(const void* nodeIdContext,
+                             size_t startIndex,
+                             size_t endIndex,
+                             UA_Boolean reverse,
+                             size_t skip,
+                             size_t maxValues,
+                             size_t * skipedValues,
+                             UA_DataValue * values);
+
+    const UA_DataValue* (*getDataValue)(const void* nodeIdContext,
+                                        size_t index);
+
+    UA_Boolean (*boundSupported)(void);
+
 } UA_HistoryDataBackend;
 
 typedef enum {

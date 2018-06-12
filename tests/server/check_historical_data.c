@@ -160,6 +160,9 @@ static UA_Boolean fillHistoricalDataBackend(UA_HistoryDataBackend *backend) {
     int i = 0;
     UA_DateTime currentDateTime = testData[i];
     fprintf(stderr, "Adding to historical data backend: ");
+    void *nodeIdContext = backend->getNodeIdContext(
+                backend->context,
+                &outNodeId);
     while (currentDateTime) {
         fprintf(stderr, "%lld, ", currentDateTime / UA_DATETIME_SEC);
         UA_DataValue value;
@@ -171,7 +174,7 @@ static UA_Boolean fillHistoricalDataBackend(UA_HistoryDataBackend *backend) {
         value.sourceTimestamp = currentDateTime;
         value.hasStatus = true;
         value.status = UA_STATUSCODE_GOOD;
-        if (backend->addHistoryData(backend->context, &value, &outNodeId) != UA_STATUSCODE_GOOD) {
+        if (backend->insertHistoryData(nodeIdContext, &value) != UA_STATUSCODE_GOOD) {
             fprintf(stderr, "\n");
             return false;
         }
@@ -182,7 +185,51 @@ static UA_Boolean fillHistoricalDataBackend(UA_HistoryDataBackend *backend) {
     return true;
 }
 
-static UA_UInt32 testHistoricalDataBackend(UA_HistoryDataBackend *backend) {
+void
+Service_HistoryRead(UA_Server *server, UA_Session *session,
+                    const UA_HistoryReadRequest *request,
+                    UA_HistoryReadResponse *response);
+
+static void
+requestHistory(UA_DateTime start,
+               UA_DateTime end,
+               UA_HistoryReadResponse * response,
+               UA_UInt32 numValuesPerNode,
+               UA_Boolean returnBounds,
+               UA_ByteString *continuationPoint) {
+    UA_ReadRawModifiedDetails *details = UA_ReadRawModifiedDetails_new();
+    details->startTime = start;
+    details->endTime = end;
+    details->isReadModified = false;
+    details->numValuesPerNode = numValuesPerNode;
+    details->returnBounds = returnBounds;
+
+    UA_HistoryReadValueId *valueId = UA_HistoryReadValueId_new();
+    UA_NodeId_copy(&outNodeId, &valueId->nodeId);
+    if (continuationPoint)
+        UA_ByteString_copy(continuationPoint, &valueId->continuationPoint);
+
+    UA_HistoryReadRequest request;
+    UA_HistoryReadRequest_init(&request);
+    request.historyReadDetails.encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.historyReadDetails.content.decoded.type = &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
+    request.historyReadDetails.content.decoded.data = details;
+
+    request.nodesToReadSize = 1;
+    request.nodesToRead = valueId;
+
+    Service_HistoryRead(server, NULL, &request, response);
+    UA_HistoryReadRequest_deleteMembers(&request);
+}
+
+static UA_UInt32 testHistoricalDataBackend(UA_HistoryDataBackend *backend, size_t maxResponseSize) {
+    UA_HistorizingSetting setting;
+    setting.historizingBackend = *backend;
+    setting.maxHistoryDataResponseSize = maxResponseSize;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    UA_StatusCode retx = UA_Server_setHistorizingSettingToVariableNode(server, &outNodeId, setting);
+    ck_assert_uint_eq(retx, UA_STATUSCODE_GOOD);
+
     UA_UInt32 retval = 0;
     size_t i = 0;
     testTuple *current = &testRequests[i];
@@ -208,175 +255,99 @@ static UA_UInt32 testHistoricalDataBackend(UA_HistoryDataBackend *backend) {
         }
         fprintf(stderr, "}");
 
-        // Test without continuous
-        UA_DataValue *result;
+        UA_DataValue *result = NULL;
         size_t resultSize = 0;
-        UA_Boolean hasMoreData;
-        UA_StatusCode stat = backend->getHistoryData(backend->context,
-                                                       current->start,
-                                                       current->end,
-                                                       &outNodeId,
-                                                       0,
-                                                       8,
-                                                       current->numValuesPerNode,
-                                                       current->returnBounds,
-                                                       &result,
-                                                       &resultSize,
-                                                       &hasMoreData);
-
-        fprintf(stderr, "{");
-        if (stat != UA_STATUSCODE_GOOD) {
-            fprintf(stderr, "%s", UA_StatusCode_name(stat));
-        } else {
-            for (size_t k = 0; k < resultSize; ++k)
-                printResult(&result[k]);
-        }
-        fprintf(stderr, "}");
-
-
+        UA_Boolean hasMoreData = true;
+        UA_ByteString continuous;
+        UA_ByteString_init(&continuous);
         UA_Boolean readOk = true;
-        if (stat == UA_STATUSCODE_BADBOUNDNOTSUPPORTED && current->returnBounds) {
-            /* this is ok */
-        } else if (stat == UA_STATUSCODE_GOOD && j == resultSize) {
-            for (size_t l = 0; l < resultSize; ++l) {
-                /* See OPC UA Part 11, Version 1.03, Page 5-6, Table 1, Mark a for details.*/
-                if (current->result[l] == TIMESTAMP_LAST && current->end == TIMESTAMP_UNSPECIFIED) {
-                    if (!(l > 0 && result[l].sourceTimestamp == result[l-1].sourceTimestamp + UA_DATETIME_SEC))
-                        readOk = false;
-                }
-                /* See OPC UA Part 11, Version 1.03, Page 5-6, Table 1, Mark b for details.*/
-                if (current->result[l] == TIMESTAMP_FIRST && current->start == TIMESTAMP_UNSPECIFIED) {
-                    if (!(l > 0 && result[l].sourceTimestamp == result[l-1].sourceTimestamp - UA_DATETIME_SEC))
-                        readOk = false;
-                }
-                if (!resultIsEqual(&result[l], current, l))
+        size_t reseivedValues = 0;
+        fprintf(stderr, "{");
+        while (hasMoreData) {
+            UA_HistoryReadResponse response;
+            requestHistory(current->start,
+                           current->end,
+                           &response,
+                           current->numValuesPerNode,
+                           current->returnBounds,
+                           &continuous);
+            if(response.resultsSize != 1) {
+                fprintf(stderr, "ResultError:Size");
+                readOk = false;
+                hasMoreData = false;
+                break;
+            }
+            hasMoreData = response.results[0].continuationPoint.length > 0;
+            UA_StatusCode stat = response.results[0].statusCode;
+            if (stat == UA_STATUSCODE_BADBOUNDNOTSUPPORTED && current->returnBounds) {
+                hasMoreData = false;
+                fprintf(stderr, "%s", UA_StatusCode_name(stat));
+                break;
+            }
+
+            if(response.results[0].historyData.encoding != UA_EXTENSIONOBJECT_DECODED
+                    || response.results[0].historyData.content.decoded.type != &UA_TYPES[UA_TYPES_HISTORYDATA]) {
+                fprintf(stderr, "ResultError:HistoryData");
+                readOk = false;
+                hasMoreData = false;
+                break;
+            }
+            UA_HistoryData * data = (UA_HistoryData *)response.results[0].historyData.content.decoded.data;
+            resultSize = data->dataValuesSize;
+            result = data->dataValues;
+            if (resultSize > maxResponseSize) {
+                    fprintf(stderr, "ContinuousError");
                     readOk = false;
-            }
-        } else {
-            readOk = false;
-        }
-        if (resultSize > 0)
-            UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-
-        // Test with continuous, read 1
-        stat = UA_STATUSCODE_GOOD;
-        hasMoreData = true;
-        size_t index = 0;
-        UA_Boolean cont1Ok = true;
-        fprintf(stderr, "{");
-        while (stat == UA_STATUSCODE_GOOD && hasMoreData) {
-            stat = backend->getHistoryData(backend->context,
-                                             current->start,
-                                             current->end,
-                                             &outNodeId,
-                                             index,
-                                             1,
-                                             current->numValuesPerNode,
-                                             current->returnBounds,
-                                             &result,
-                                             &resultSize,
-                                             &hasMoreData);
-            if (stat == UA_STATUSCODE_GOOD && resultSize > 0) {
-                if (resultSize > 1 || index > 8) {
-                    cont1Ok = false;
+                    hasMoreData = false;
                     break;
-                }
-                for (size_t m = index; m < index+resultSize; ++m) {
-                    printResult(&result[m-index]);
-                    if (!resultIsEqual(&result[m-index], current, m))
-                        cont1Ok = false;
-                }
-                if (resultSize > 0)
-                    UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-            } else if (stat != UA_STATUSCODE_GOOD) {
+            }
+            if (hasMoreData) {
+                UA_ByteString_deleteMembers(&continuous);
+                UA_ByteString_copy(&response.results[0].continuationPoint, &continuous);
+            }
+
+            if (stat != UA_STATUSCODE_GOOD) {
                 fprintf(stderr, "%s", UA_StatusCode_name(stat));
+            } else {
+                for (size_t k = 0; k < resultSize; ++k)
+                    printResult(&result[k]);
+            }
+
+            if (stat == UA_STATUSCODE_GOOD && j >= resultSize + reseivedValues) {
+                for (size_t l = 0; l < resultSize; ++l) {
+                    /* See OPC UA Part 11, Version 1.03, Page 5-6, Table 1, Mark a for details.*/
+                    if (current->result[l + reseivedValues] == TIMESTAMP_LAST && current->end == TIMESTAMP_UNSPECIFIED) {
+                        // This test will work on not continous read, only
+                        if (reseivedValues == 0 && !(l > 0 && result[l].sourceTimestamp == result[l-1].sourceTimestamp + UA_DATETIME_SEC))
+                            readOk = false;
+                    }
+                    /* See OPC UA Part 11, Version 1.03, Page 5-6, Table 1, Mark b for details.*/
+                    if (current->result[l + reseivedValues] == TIMESTAMP_FIRST && current->start == TIMESTAMP_UNSPECIFIED) {
+                        // This test will work on not continous read, only
+                        if (reseivedValues == 0 && !(l > 0 && result[l].sourceTimestamp == result[l-1].sourceTimestamp - UA_DATETIME_SEC))
+                            readOk = false;
+                    }
+                    if (!resultIsEqual(&result[l], current, l + reseivedValues))
+                        readOk = false;
+                }
+                reseivedValues += resultSize;
+            } else {
+                readOk = false;
+                hasMoreData = false;
                 break;
             }
-            index += resultSize;
+            UA_HistoryReadResponse_deleteMembers(&response);
         }
-        fprintf(stderr, "}");
-        if (stat == UA_STATUSCODE_GOOD && j != index)
-            cont1Ok = false;
-
-        // Test with continuous, read 2
-        stat = UA_STATUSCODE_GOOD;
-        hasMoreData = true;
-        index = 0;
-        UA_Boolean cont2Ok = true;
-        fprintf(stderr, "{");
-        while (stat == UA_STATUSCODE_GOOD && hasMoreData) {
-            stat = backend->getHistoryData(backend->context,
-                                             current->start,
-                                             current->end,
-                                             &outNodeId,
-                                             index,
-                                             2,
-                                             current->numValuesPerNode,
-                                             current->returnBounds,
-                                             &result,
-                                             &resultSize,
-                                             &hasMoreData);
-            if (stat == UA_STATUSCODE_GOOD && resultSize > 0) {
-                if (resultSize > 2 || index > 8) {
-                    cont2Ok = false;
-                    break;
-                }
-                for (size_t n = index; n < index+resultSize; ++n) {
-                    printResult(&result[n-index]);
-                    if (!resultIsEqual(&result[n-index], current, n))
-                        cont2Ok = false;
-                }
-                if (resultSize > 0)
-                    UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-            } else if (stat != UA_STATUSCODE_GOOD) {
-                fprintf(stderr, "%s", UA_StatusCode_name(stat));
-                break;
-            }
-            index += resultSize;
-        }
-        fprintf(stderr, "}");
-        if (stat == UA_STATUSCODE_GOOD && j != index)
-            cont2Ok = false;
-
-        if (!readOk || !cont1Ok || !cont2Ok) {
-            fprintf(stderr, " Fail(%s%s%s)\n", readOk ? "O" : "F", cont1Ok ? "O" : "F", cont2Ok ? "O" : "F");
+        UA_ByteString_deleteMembers(&continuous);
+        if (!readOk) {
+            fprintf(stderr, "} Fail\n");
             ++retval;
         } else {
-            fprintf(stderr, " OK\n");
+            fprintf(stderr, "} OK\n");
         }
         current = &testRequests[++i];
     }
     return retval;
-}
-
-void
-Service_HistoryRead(UA_Server *server, UA_Session *session,
-                    const UA_HistoryReadRequest *request,
-                    UA_HistoryReadResponse *response);
-
-static void
-requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * response) {
-    UA_ReadRawModifiedDetails *details = UA_ReadRawModifiedDetails_new();
-    details->startTime = start;
-    details->endTime = end;
-    details->isReadModified = false;
-    details->numValuesPerNode = 0;
-    details->returnBounds = false;
-
-    UA_HistoryReadValueId *valueId = UA_HistoryReadValueId_new();
-    UA_NodeId_copy(&outNodeId, &valueId->nodeId);
-
-    UA_HistoryReadRequest request;
-    UA_HistoryReadRequest_init(&request);
-    request.historyReadDetails.encoding = UA_EXTENSIONOBJECT_DECODED;
-    request.historyReadDetails.content.decoded.type = &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
-    request.historyReadDetails.content.decoded.data = details;
-
-    request.nodesToReadSize = 1;
-    request.nodesToRead = valueId;
-
-    Service_HistoryRead(server, NULL, &request, response);
-    UA_HistoryReadRequest_deleteMembers(&request);
 }
 
 START_TEST(Server_HistorizingStrategyUser) {
@@ -388,6 +359,7 @@ START_TEST(Server_HistorizingStrategyUser) {
     UA_StatusCode retval = UA_Server_setHistorizingSettingToVariableNode(server, &outNodeId, setting);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    void *nodeIdContext = setting.historizingBackend.getNodeIdContext(setting.historizingBackend.context, &outNodeId);
     // fill the data
     UA_DateTime start = UA_DateTime_now();
     UA_DateTime end = start + (10 * UA_DATETIME_SEC);
@@ -400,13 +372,13 @@ START_TEST(Server_HistorizingStrategyUser) {
         UA_Variant_setScalarCopy(&value.value, &i, &UA_TYPES[UA_TYPES_UINT32]);
         value.hasSourceTimestamp = true;
         value.sourceTimestamp = start + (i * UA_DATETIME_SEC);
-        setting.historizingBackend.addHistoryData(setting.historizingBackend.context, &value, &outNodeId);
+        setting.historizingBackend.insertHistoryData(nodeIdContext, &value);
         UA_DataValue_deleteMembers(&value);
     }
 
     // request
     UA_HistoryReadResponse response;
-    requestHistory(start, end, &response);
+    requestHistory(start, end, &response, 0, false, NULL);
 
     // test the response
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
@@ -462,7 +434,7 @@ START_TEST(Server_HistorizingStrategyPoll) {
 
     // request
     UA_HistoryReadResponse response;
-    requestHistory(start, end, &response);
+    requestHistory(start, end, &response, 0, false, NULL);
 
     // test the response
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
@@ -514,7 +486,7 @@ START_TEST(Server_HistorizingStrategyValueSet) {
 
     // request
     UA_HistoryReadResponse response;
-    requestHistory(start, end, &response);
+    requestHistory(start, end, &response, 0, false, NULL);
 
     // test the response
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
@@ -542,12 +514,29 @@ END_TEST
 
 START_TEST(Server_HistorizingBackendMemory) {
     UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
-    UA_UInt32 retval = testHistoricalDataBackend(&backend);
+
+    // empty backend should not crash
+    UA_UInt32 retval = testHistoricalDataBackend(&backend, 100);
     fprintf(stderr, "%d tests expected failed.\n", retval);
+
+    // fill backend
     ck_assert_uint_eq(fillHistoricalDataBackend(&backend), true);
-    retval = testHistoricalDataBackend(&backend);
+
+    // read all in one
+    retval = testHistoricalDataBackend(&backend, 100);
     fprintf(stderr, "%d tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
+
+    // read continuous one at one request
+    retval = testHistoricalDataBackend(&backend, 1);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+
+    // read continuous two at one request
+    retval = testHistoricalDataBackend(&backend, 2);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+
     UA_HistoryDataBackend_Memory_deleteMembers(&backend);
 }
 END_TEST

@@ -50,8 +50,9 @@ static void UA_MemoryStoreContext_deleteMembers(UA_MemoryStoreContext* ctx) {
     UA_free(ctx->nodeStore);
 }
 
-static UA_NodeIdStoreContextItem*
-getNodeIdStoreContextItem(UA_MemoryStoreContext *ctx, const UA_NodeId *node) {
+static void*
+getNodeIdContext(void *context, const UA_NodeId *node) {
+    UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext*)context;
     for (size_t i = 0; i < ctx->storeEnd; ++i) {
         if (UA_NodeId_equal(&ctx->nodeStore[i]->nodeId, node))
             return ctx->nodeStore[i];
@@ -82,13 +83,6 @@ getNodeIdStoreContextItem(UA_MemoryStoreContext *ctx, const UA_NodeId *node) {
 
     return item;
 }
-typedef enum {
-    MATCH_EQUAL,
-    MATCH_AFTER,
-    MATCH_EQUAL_OR_AFTER,
-    MATCH_BEFORE,
-    MATCH_EQUAL_OR_BEFORE
-} MatchStrategy;
 
 static UA_Boolean binarySearch(const UA_NodeIdStoreContextItem* item, const UA_DateTime timestamp, size_t *index) {
     if (item->storeEnd == 0) {
@@ -117,8 +111,23 @@ static UA_Boolean binarySearch(const UA_NodeIdStoreContextItem* item, const UA_D
     return false;
 
 }
+
 static size_t
-getMatch(const UA_NodeIdStoreContextItem* item, const UA_DateTime timestamp, const MatchStrategy strategy ) {
+resultSize(const void* nodeIdContext,
+           size_t startIndex,
+           size_t endIndex) {
+    const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
+    if (item->storeEnd == 0
+            || startIndex == item->storeEnd
+            || endIndex == item->storeEnd)
+        return 0;
+    return endIndex - startIndex + 1;
+}
+
+static size_t getDateTimeMatch(const void * nodeIdContext,
+                       const UA_DateTime timestamp,
+                       const MatchStrategy strategy) {
+    const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
     size_t current;
     UA_Boolean retval = binarySearch(item, timestamp, &current);
 
@@ -148,241 +157,11 @@ getMatch(const UA_NodeIdStoreContextItem* item, const UA_DateTime timestamp, con
     return item->storeEnd;
 }
 
-static void
-UA_MemoryStoreContext_delete(UA_MemoryStoreContext* ctx) {
-    UA_MemoryStoreContext_deleteMembers(ctx);
-    UA_free(ctx);
-}
-
-static size_t
-resultSize(const UA_NodeIdStoreContextItem* item,
-           size_t startIndex,
-           size_t endIndex) {
-    if (item->storeEnd == 0
-            || startIndex == item->storeEnd
-            || endIndex == item->storeEnd)
-        return 0;
-    return endIndex - startIndex + 1;
-}
-
-static size_t
-getResultSize(const UA_NodeIdStoreContextItem* item,
-              UA_DateTime start,
-              UA_DateTime end,
-              UA_UInt32 numValuesPerNode,
-              UA_Boolean returnBounds,
-              size_t *startIndex,
-              size_t *endIndex,
-              UA_Boolean *addFirst,
-              UA_Boolean *addLast,
-              UA_Boolean *reverse)
-{
-    *startIndex = item->storeEnd;
-    *endIndex = item->storeEnd;
-    *addFirst = false;
-    *addLast = false;
-    if (end == LLONG_MIN) {
-        *reverse = false;
-    } else if (start == LLONG_MIN) {
-        *reverse = true;
-    } else {
-        *reverse = end < start;
-    }
-    UA_Boolean equal = start == end;
-    size_t size = 0;
-    if (item->storeEnd > 0) {
-        if (equal) {
-            if (returnBounds) {
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_BEFORE);
-                if (*startIndex == item->storeEnd) {
-                    *startIndex = getMatch(item, start, MATCH_AFTER);
-                    *addFirst = true;
-                }
-                *endIndex = getMatch(item, start, MATCH_AFTER);
-                size = resultSize(item, *startIndex, *endIndex);
-            } else {
-                *startIndex = getMatch(item, start, MATCH_EQUAL);
-                *endIndex = *startIndex;
-                if (*startIndex == item->storeEnd)
-                    size = 0;
-                else
-                    size = 1;
-            }
-        } else if (start == LLONG_MIN) {
-            *endIndex = 0;
-            if (returnBounds) {
-                *addLast = true;
-                *startIndex = getMatch(item, end, MATCH_EQUAL_OR_AFTER);
-                if (*startIndex == item->storeEnd) {
-                    *startIndex = getMatch(item, end, MATCH_EQUAL_OR_BEFORE);
-                    *addFirst = true;
-                }
-            } else {
-                *startIndex = getMatch(item, end, MATCH_EQUAL_OR_BEFORE);
-            }
-            size = resultSize(item, *endIndex, *startIndex);
-        } else if (end == LLONG_MIN) {
-            *endIndex = item->storeEnd - 1;
-            if (returnBounds) {
-                *addLast = true;
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_BEFORE);
-                if (*startIndex == item->storeEnd) {
-                    *startIndex = getMatch(item, start, MATCH_AFTER);
-                    *addFirst = true;
-                }
-            } else {
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_AFTER);
-            }
-            size = resultSize(item, *startIndex, *endIndex);
-        } else if (*reverse) {
-            if (returnBounds) {
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_AFTER);
-                if (*startIndex == item->storeEnd) {
-                    *addFirst = true;
-                    *startIndex = getMatch(item, start, MATCH_BEFORE);
-                }
-                *endIndex = getMatch(item, end, MATCH_EQUAL_OR_BEFORE);
-                if (*endIndex == item->storeEnd) {
-                    *addLast = true;
-                    *endIndex = getMatch(item, end, MATCH_AFTER);
-                }
-            } else {
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_BEFORE);
-                *endIndex = getMatch(item, end, MATCH_AFTER);
-            }
-            size = resultSize(item, *endIndex, *startIndex);
-        } else {
-            if (returnBounds) {
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_BEFORE);
-                if (*startIndex == item->storeEnd) {
-                    *addFirst = true;
-                    *startIndex = getMatch(item, start, MATCH_AFTER);
-                }
-                *endIndex = getMatch(item, end, MATCH_EQUAL_OR_AFTER);
-                if (*endIndex == item->storeEnd) {
-                    *addLast = true;
-                    *endIndex = getMatch(item, end, MATCH_BEFORE);
-                }
-            } else {
-                *startIndex = getMatch(item, start, MATCH_EQUAL_OR_AFTER);
-                *endIndex = getMatch(item, end, MATCH_BEFORE);
-            }
-            size = resultSize(item, *startIndex, *endIndex);
-        }
-    } else if (returnBounds) {
-        *addLast = true;
-        *addFirst = true;
-    }
-
-    if (*addLast)
-        ++size;
-    if (*addFirst)
-        ++size;
-
-    if (numValuesPerNode > 0 && size > numValuesPerNode) {
-        size = numValuesPerNode;
-        *addLast = false;
-    }
-    return size;
-}
-
 static UA_StatusCode
-getHistoryDataMemory(void* context,
-                     const UA_DateTime start,
-                     const UA_DateTime end,
-                     UA_NodeId* nodeId,
-                     size_t skip,
-                     size_t maxSize,
-                     UA_UInt32 numValuesPerNode,
-                     UA_Boolean returnBounds,
-                     UA_DataValue ** result,
-                     size_t *resultSize,
-                     UA_Boolean *hasMoreData)
+insertHistoryData(void* nodeIdContext,
+                     UA_DataValue *value)
 {
-    UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext*)context;
-    UA_NodeIdStoreContextItem *item = getNodeIdStoreContextItem(ctx, nodeId);
-    size_t startIndex;
-    size_t endIndex;
-    UA_Boolean addFirst;
-    UA_Boolean addLast;
-    UA_Boolean reverse;
-    size_t _resultSize = getResultSize(item, start, end, numValuesPerNode, returnBounds,
-                                       &startIndex, &endIndex, &addFirst, &addLast, &reverse);
-    if (_resultSize <= skip) {
-        *resultSize = 0;
-        *hasMoreData = false;
-        return UA_STATUSCODE_GOOD;
-    }
-    *resultSize = _resultSize - skip;
-    if (*resultSize > maxSize) {
-        *resultSize = maxSize;
-    }
-    *result = (UA_DataValue*)UA_Array_new(*resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if (!(*result)) {
-        *resultSize = 0;
-        *hasMoreData = false;
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    size_t index = startIndex;
-    size_t counter = 0;
-    size_t skipCounter = 0;
-    if (addFirst) {
-        if (skip == 0) {
-            (*result)[counter].hasStatus = true;
-            (*result)[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
-            (*result)[counter].hasSourceTimestamp = true;
-            if (start == LLONG_MIN) {
-                (*result)[counter].sourceTimestamp = end;
-            } else {
-                (*result)[counter].sourceTimestamp = start;
-            }
-            ++counter;
-        }
-        ++skipCounter;
-    }
-    if (endIndex < item->storeEnd && startIndex < item->storeEnd) {
-        if (reverse) {
-            while (index >= endIndex && index < item->storeEnd && counter < *resultSize) {
-                if (skipCounter++ >= skip) {
-                    UA_DataValue_copy(&item->dataStore[index]->value, &(*result)[counter]);
-                    ++counter;
-                }
-                --index;
-            }
-        } else {
-            while (index <= endIndex && counter < *resultSize) {
-                if (skipCounter++ >= skip) {
-                    UA_DataValue_copy(&item->dataStore[index]->value, &(*result)[counter]);
-                    ++counter;
-                }
-                ++index;
-            }
-        }
-    }
-    if (addLast && counter < *resultSize) {
-        (*result)[counter].hasStatus = true;
-        (*result)[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
-        (*result)[counter].hasSourceTimestamp = true;
-        if (start == LLONG_MIN && item->storeEnd > 0) {
-            (*result)[counter].sourceTimestamp = item->dataStore[endIndex]->value.sourceTimestamp - UA_DATETIME_SEC;
-        } else if (end == LLONG_MIN && item->storeEnd > 0) {
-            (*result)[counter].sourceTimestamp = item->dataStore[endIndex]->value.sourceTimestamp + UA_DATETIME_SEC;
-        } else {
-            (*result)[counter].sourceTimestamp = end;
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-
-static UA_StatusCode
-addHistoryDataMemory(void* context,
-                     UA_DataValue *value,
-                     UA_NodeId *nodeId)
-{
-    UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext*)context;
-    UA_NodeIdStoreContextItem *item = getNodeIdStoreContextItem(ctx, nodeId);
+    UA_NodeIdStoreContextItem *item = (UA_NodeIdStoreContextItem *)nodeIdContext;
 
     if (item->storeEnd >= item->storeSize) {
         size_t newStoreSize = item->storeSize == 0 ? INITIAL_MEMORY_STORE_SIZE : item->storeSize * 2;
@@ -404,7 +183,7 @@ addHistoryDataMemory(void* context,
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
-    size_t index = getMatch(item, timestamp, MATCH_EQUAL_OR_AFTER);
+    size_t index = getDateTimeMatch(item, timestamp, MATCH_EQUAL_OR_AFTER);
     if (item->storeEnd > 0 && index < item->storeEnd) {
         memmove(&item->dataStore[index+1], &item->dataStore[index], sizeof(UA_DataValueMemoryStoreItem*) * (item->storeEnd - index));
     }
@@ -413,12 +192,86 @@ addHistoryDataMemory(void* context,
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+UA_MemoryStoreContext_delete(UA_MemoryStoreContext* ctx) {
+    UA_MemoryStoreContext_deleteMembers(ctx);
+    UA_free(ctx);
+}
+
+static size_t
+getEnd(const void * nodeIdContext) {
+    const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
+    return item->storeEnd;
+}
+
+static size_t
+lastIndex(const void * nodeIdContext) {
+    const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
+    return item->storeEnd - 1;
+}
+
+static size_t
+firstIndex(const void * nodeIdContext) {
+    return 0;
+}
+
+static UA_Boolean
+boundSupported(void) {
+    return true;
+}
+
+static const UA_DataValue*
+getDataValue(const void* nodeIdContext, size_t index) {
+    const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
+    return &item->dataStore[index]->value;
+}
+
+static size_t
+copyDataValues(const void* nodeIdContext,
+               size_t startIndex,
+               size_t endIndex,
+               UA_Boolean reverse,
+               size_t skip,
+               size_t maxValues,
+               size_t * skipedValues,
+               UA_DataValue * values)
+{
+    const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
+    size_t index = startIndex;
+    size_t counter = 0;
+    if (reverse) {
+        while (index >= endIndex && index < item->storeEnd && counter < maxValues) {
+            if ((*skipedValues)++ >= skip) {
+                UA_DataValue_copy(&item->dataStore[index]->value, &values[counter]);
+                ++counter;
+            }
+            --index;
+        }
+    } else {
+        while (index <= endIndex && counter < maxValues) {
+            if ((*skipedValues)++ >= skip) {
+                UA_DataValue_copy(&item->dataStore[index]->value, &values[counter]);
+                ++counter;
+            }
+            ++index;
+        }
+    }
+    return counter;
+}
+
 UA_HistoryDataBackend
 UA_HistoryDataBackend_Memory(size_t initialNodeStoreSize, size_t initialDataStoreSize) {
     UA_HistoryDataBackend result;
-    result.addHistoryData = NULL;
-    result.getHistoryData = NULL;
+    result.insertHistoryData = NULL;
+    result.getEnd = NULL;
+    result.lastIndex = NULL;
+    result.firstIndex = NULL;
+    result.getDateTimeMatch = NULL;
+    result.getNodeIdContext = NULL;
     result.context = NULL;
+    result.copyDataValues = NULL;
+    result.getDataValue = NULL;
+    result.boundSupported = NULL;
     UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext *)UA_calloc(1, sizeof(UA_MemoryStoreContext));
     if (!ctx)
         return result;
@@ -430,8 +283,16 @@ UA_HistoryDataBackend_Memory(size_t initialNodeStoreSize, size_t initialDataStor
         UA_free(ctx);
         return result;
     }
-    result.addHistoryData = &addHistoryDataMemory;
-    result.getHistoryData = &getHistoryDataMemory;
+    result.insertHistoryData = &insertHistoryData;
+    result.resultSize = &resultSize;
+    result.getNodeIdContext = &getNodeIdContext;
+    result.getEnd = &getEnd;
+    result.lastIndex = &lastIndex;
+    result.firstIndex = &firstIndex;
+    result.getDateTimeMatch = &getDateTimeMatch;
+    result.copyDataValues = &copyDataValues;
+    result.getDataValue = &getDataValue;
+    result.boundSupported = &boundSupported;
     result.context = ctx;
     return result;
 }

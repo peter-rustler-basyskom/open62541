@@ -397,10 +397,12 @@ __UA_HistorizingPollingCallback(UA_Server *server, UA_NodeId *nodeId)
     UA_DataValue value =
         UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
 
-    if (variableNode->historizingSetting.historizingBackend.addHistoryData)
-        variableNode->historizingSetting.historizingBackend.addHistoryData(
-                    variableNode->historizingSetting.historizingBackend.context,
-                    &value, nodeId);
+    void * nodeIdContext = variableNode->historizingSetting.historizingBackend.getNodeIdContext(variableNode->historizingSetting.historizingBackend.context, nodeId);
+
+    if (variableNode->historizingSetting.historizingBackend.insertHistoryData)
+        variableNode->historizingSetting.historizingBackend.insertHistoryData(
+                    nodeIdContext,
+                    &value);
 
     UA_DataValue_deleteMembers(&value);
     UA_Nodestore_release(server, (const UA_Node*)variableNode);
