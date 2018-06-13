@@ -1083,15 +1083,17 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                                               node->context, rangeptr,
                                               &adjustedValue);
 #ifdef UA_ENABLE_HISTORIZING
-        if (node->historizing && !node->historizingSetting.historizingBackend.addHistoryData) {
+        if (node->historizing && !node->historizingSetting.historizingBackend.insertHistoryData) {
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "No history data backend set");
         } else if (node->historizing
                    && node->historizingSetting.historizingUpdateStrategy & UA_HISTORIZINGUPDATESTRATEGY_VALUESET) {
-            UA_StatusCode result = node->historizingSetting.historizingBackend.addHistoryData(
+            void *nodeIdContext = node->historizingSetting.historizingBackend.getNodeIdContext(
                         node->historizingSetting.historizingBackend.context,
-                        &adjustedValue,
                         &node->nodeId);
+            UA_StatusCode result = node->historizingSetting.historizingBackend.insertHistoryData(
+                        nodeIdContext,
+                        &adjustedValue);
             if (result != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                             "Inserting historizing value returned %s",
@@ -1393,6 +1395,217 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
 }
 
 #ifdef UA_ENABLE_HISTORIZING
+
+#include <limits.h>
+
+static size_t
+getResultSize(const UA_HistoryDataBackend* backend,
+              void *nodeIdContext,
+              UA_DateTime start,
+              UA_DateTime end,
+              UA_UInt32 numValuesPerNode,
+              UA_Boolean returnBounds,
+              size_t *startIndex,
+              size_t *endIndex,
+              UA_Boolean *addFirst,
+              UA_Boolean *addLast,
+              UA_Boolean *reverse)
+{
+    size_t storeEnd = backend->getEnd(nodeIdContext);
+    *startIndex = storeEnd;
+    *endIndex = storeEnd;
+    *addFirst = false;
+    *addLast = false;
+    if (end == LLONG_MIN) {
+        *reverse = false;
+    } else if (start == LLONG_MIN) {
+        *reverse = true;
+    } else {
+        *reverse = end < start;
+    }
+    UA_Boolean equal = start == end;
+    size_t size = 0;
+    if (storeEnd > 0) {
+        if (equal) {
+            if (returnBounds) {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_BEFORE);
+                if (*startIndex == storeEnd) {
+                    *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_AFTER);
+                    *addFirst = true;
+                }
+                *endIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_AFTER);
+                size = backend->resultSize(nodeIdContext, *startIndex, *endIndex);
+            } else {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL);
+                *endIndex = *startIndex;
+                if (*startIndex == storeEnd)
+                    size = 0;
+                else
+                    size = 1;
+            }
+        } else if (start == LLONG_MIN) {
+            *endIndex = 0;
+            if (returnBounds) {
+                *addLast = true;
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_EQUAL_OR_AFTER);
+                if (*startIndex == storeEnd) {
+                    *startIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_EQUAL_OR_BEFORE);
+                    *addFirst = true;
+                }
+            } else {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_EQUAL_OR_BEFORE);
+            }
+            size = backend->resultSize(nodeIdContext, *endIndex, *startIndex);
+        } else if (end == LLONG_MIN) {
+            *endIndex = storeEnd - 1;
+            if (returnBounds) {
+                *addLast = true;
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_BEFORE);
+                if (*startIndex == storeEnd) {
+                    *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_AFTER);
+                    *addFirst = true;
+                }
+            } else {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_AFTER);
+            }
+            size = backend->resultSize(nodeIdContext, *startIndex, *endIndex);
+        } else if (*reverse) {
+            if (returnBounds) {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_AFTER);
+                if (*startIndex == storeEnd) {
+                    *addFirst = true;
+                    *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_BEFORE);
+                }
+                *endIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_EQUAL_OR_BEFORE);
+                if (*endIndex == storeEnd) {
+                    *addLast = true;
+                    *endIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_AFTER);
+                }
+            } else {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_BEFORE);
+                *endIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_AFTER);
+            }
+            size = backend->resultSize(nodeIdContext, *endIndex, *startIndex);
+        } else {
+            if (returnBounds) {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_BEFORE);
+                if (*startIndex == storeEnd) {
+                    *addFirst = true;
+                    *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_AFTER);
+                }
+                *endIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_EQUAL_OR_AFTER);
+                if (*endIndex == storeEnd) {
+                    *addLast = true;
+                    *endIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_BEFORE);
+                }
+            } else {
+                *startIndex = backend->getDateTimeMatch(nodeIdContext, start, MATCH_EQUAL_OR_AFTER);
+                *endIndex = backend->getDateTimeMatch(nodeIdContext, end, MATCH_BEFORE);
+            }
+            size = backend->resultSize(nodeIdContext, *startIndex, *endIndex);
+        }
+    } else if (returnBounds) {
+        *addLast = true;
+        *addFirst = true;
+    }
+
+    if (*addLast)
+        ++size;
+    if (*addFirst)
+        ++size;
+
+    if (numValuesPerNode > 0 && size > numValuesPerNode) {
+        size = numValuesPerNode;
+        *addLast = false;
+    }
+    return size;
+}
+
+static UA_StatusCode
+getHistoryData(const UA_HistoryDataBackend* backend,
+                     const UA_DateTime start,
+                     const UA_DateTime end,
+                     UA_NodeId* nodeId,
+                     size_t skip,
+                     size_t maxSize,
+                     UA_UInt32 numValuesPerNode,
+                     UA_Boolean returnBounds,
+                     UA_NumericRange * range,
+                     UA_DataValue ** result,
+                     size_t *resultSize,
+                     UA_Boolean *hasMoreData)
+{
+    void *nodeIdContext = backend->getNodeIdContext(backend->context, nodeId);
+    size_t storeEnd = backend->getEnd(nodeIdContext);
+    size_t startIndex;
+    size_t endIndex;
+    UA_Boolean addFirst;
+    UA_Boolean addLast;
+    UA_Boolean reverse;
+    size_t _resultSize = getResultSize(backend, nodeIdContext, start, end, numValuesPerNode, returnBounds,
+                                       &startIndex, &endIndex, &addFirst, &addLast, &reverse);
+    if (_resultSize <= skip) {
+        *resultSize = 0;
+        *hasMoreData = false;
+        return UA_STATUSCODE_GOOD;
+    }
+    *resultSize = _resultSize - skip;
+    if (*resultSize > maxSize) {
+        *resultSize = maxSize;
+        *hasMoreData = true;
+    }
+    *result = (UA_DataValue*)UA_Array_new(*resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    if (!(*result)) {
+        *resultSize = 0;
+        *hasMoreData = false;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    size_t counter = 0;
+    size_t skipCounter = 0;
+    if (addFirst) {
+        if (skip == 0) {
+            (*result)[counter].hasStatus = true;
+            (*result)[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
+            (*result)[counter].hasSourceTimestamp = true;
+            if (start == LLONG_MIN) {
+                (*result)[counter].sourceTimestamp = end;
+            } else {
+                (*result)[counter].sourceTimestamp = start;
+            }
+            ++counter;
+        }
+        ++skipCounter;
+    }
+    if (endIndex != storeEnd && startIndex != storeEnd) {
+        size_t retval = backend->copyDataValues(nodeIdContext,
+                                                startIndex,
+                                                endIndex,
+                                                reverse,
+                                                skip,
+                                                *resultSize - counter,
+                                                &skipCounter,
+                                                range,
+                                                &((*result)[counter]));
+        counter += retval;
+    }
+    if (addLast && counter < *resultSize) {
+        (*result)[counter].hasStatus = true;
+        (*result)[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
+        (*result)[counter].hasSourceTimestamp = true;
+        if (start == LLONG_MIN && storeEnd != backend->firstIndex(nodeIdContext)) {
+            (*result)[counter].sourceTimestamp = backend->getDataValue(nodeIdContext, endIndex)->sourceTimestamp - UA_DATETIME_SEC;
+        } else if (end == LLONG_MIN && storeEnd != backend->firstIndex(nodeIdContext)) {
+            (*result)[counter].sourceTimestamp = backend->getDataValue(nodeIdContext, endIndex)->sourceTimestamp + UA_DATETIME_SEC;
+        } else {
+            (*result)[counter].sourceTimestamp = end;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+
+
 void
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                           const UA_HistoryReadRequest *request,
@@ -1422,13 +1635,13 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                 continue;
             }
             const UA_VariableNode * variableNode = (const UA_VariableNode *)node;
-            if (!variableNode->historizingSetting.historizingBackend.getHistoryData) {
-                response->results[i].statusCode = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+            if (!(variableNode->accessLevel & UA_ACCESSLEVELMASK_HISTORYREAD)) {
+                response->results[i].statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
                 UA_Nodestore_release(server, node);
                 continue;
             }
-            if (!(variableNode->accessLevel & UA_ACCESSLEVELMASK_HISTORYREAD)) {
-                response->results[i].statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+            if (details->returnBounds && !variableNode->historizingSetting.historizingBackend.boundSupported()) {
+                response->results[i].statusCode = UA_STATUSCODE_BADBOUNDNOTSUPPORTED;
                 UA_Nodestore_release(server, node);
                 continue;
             }
@@ -1447,42 +1660,17 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
             response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
             response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
             response->results[i].historyData.content.decoded.data = data;
+            response->results[i].statusCode = UA_STATUSCODE_GOOD;
             data->dataValues = (UA_DataValue*)UA_Array_new(data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            UA_StatusCode getHistoryDataStatusCode;
             if (request->nodesToRead[i].indexRange.length > 0) {
-                UA_DataValue * allDataValues;
-                UA_StatusCode getHistoryDataStatusCode = variableNode->historizingSetting.historizingBackend.getHistoryData(
-                            variableNode->historizingSetting.historizingBackend.context,
-                            details->startTime,
-                            details->endTime,
-                            &request->nodesToRead[i].nodeId,
-                            skip,
-                            variableNode->historizingSetting.maxHistoryDataResponseSize,
-                            details->numValuesPerNode,
-                            details->returnBounds,
-                            &allDataValues,
-                            &data->dataValuesSize,
-                            &hasMoreValues);
-                if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
-                    response->results[i].statusCode = getHistoryDataStatusCode;
-                    UA_Nodestore_release(server, node);
-                    continue;
-                }
                 UA_NumericRange range;
                 UA_StatusCode rangeParseResult = UA_NumericRange_parseFromString(&range, &request->nodesToRead[i].indexRange);
                 if (rangeParseResult != UA_STATUSCODE_GOOD) {
                     response->results[i].statusCode = rangeParseResult;
-                    UA_Array_delete(data->dataValues, data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-                    data->dataValues = allDataValues;
-                    UA_Nodestore_release(server, node);
-                    continue;
                 }
-                for (size_t j = 0; j < data->dataValuesSize; ++j) {
-                    UA_Variant_copyRange(&allDataValues[j].value, &data->dataValues[j].value, range);
-                }
-                UA_Array_delete(allDataValues, data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-            } else {
-                UA_StatusCode getHistoryDataStatusCode = variableNode->historizingSetting.historizingBackend.getHistoryData(
-                            variableNode->historizingSetting.historizingBackend.context,
+                getHistoryDataStatusCode = getHistoryData(
+                            &variableNode->historizingSetting.historizingBackend,
                             details->startTime,
                             details->endTime,
                             &request->nodesToRead[i].nodeId,
@@ -1490,16 +1678,31 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                             variableNode->historizingSetting.maxHistoryDataResponseSize,
                             details->numValuesPerNode,
                             details->returnBounds,
+                            &range,
                             &data->dataValues,
                             &data->dataValuesSize,
                             &hasMoreValues);
-                if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
-                    response->results[i].statusCode = getHistoryDataStatusCode;
-                    UA_Nodestore_release(server, node);
-                    continue;
-                }
-
+            } else {
+                getHistoryDataStatusCode = getHistoryData(
+                            &variableNode->historizingSetting.historizingBackend,
+                            details->startTime,
+                            details->endTime,
+                            &request->nodesToRead[i].nodeId,
+                            skip,
+                            variableNode->historizingSetting.maxHistoryDataResponseSize,
+                            details->numValuesPerNode,
+                            details->returnBounds,
+                            NULL,
+                            &data->dataValues,
+                            &data->dataValuesSize,
+                            &hasMoreValues);
             }
+            if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
+                response->results[i].statusCode = getHistoryDataStatusCode;
+                UA_Nodestore_release(server, node);
+                continue;
+            }
+
             if (hasMoreValues) {
                 response->results[i].continuationPoint.length = sizeof(size_t);
                 size_t t = sizeof(size_t);
