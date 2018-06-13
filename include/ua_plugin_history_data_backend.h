@@ -61,6 +61,7 @@ typedef struct {
                              size_t skip,
                              size_t maxValues,
                              size_t * skipedValues,
+                             UA_NumericRange * range,
                              UA_DataValue * values);
 
     const UA_DataValue* (*getDataValue)(const void* nodeIdContext,

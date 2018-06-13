@@ -125,8 +125,8 @@ resultSize(const void* nodeIdContext,
 }
 
 static size_t getDateTimeMatch(const void * nodeIdContext,
-                       const UA_DateTime timestamp,
-                       const MatchStrategy strategy) {
+                               const UA_DateTime timestamp,
+                               const MatchStrategy strategy) {
     const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
     size_t current;
     UA_Boolean retval = binarySearch(item, timestamp, &current);
@@ -159,7 +159,7 @@ static size_t getDateTimeMatch(const void * nodeIdContext,
 
 static UA_StatusCode
 insertHistoryData(void* nodeIdContext,
-                     UA_DataValue *value)
+                  UA_DataValue *value)
 {
     UA_NodeIdStoreContextItem *item = (UA_NodeIdStoreContextItem *)nodeIdContext;
 
@@ -226,6 +226,15 @@ getDataValue(const void* nodeIdContext, size_t index) {
     return &item->dataStore[index]->value;
 }
 
+static UA_StatusCode
+UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue *dst,
+                       const UA_NumericRange range)
+{
+    memcpy(dst, src, sizeof(UA_DataValue));
+    if (src->hasValue)
+        return UA_Variant_copyRange(&src->value, &dst->value, range);
+    return UA_STATUSCODE_BADDATAUNAVAILABLE;
+}
 static size_t
 copyDataValues(const void* nodeIdContext,
                size_t startIndex,
@@ -234,6 +243,7 @@ copyDataValues(const void* nodeIdContext,
                size_t skip,
                size_t maxValues,
                size_t * skipedValues,
+               UA_NumericRange * range,
                UA_DataValue * values)
 {
     const UA_NodeIdStoreContextItem* item = (const UA_NodeIdStoreContextItem*)nodeIdContext;
@@ -242,7 +252,11 @@ copyDataValues(const void* nodeIdContext,
     if (reverse) {
         while (index >= endIndex && index < item->storeEnd && counter < maxValues) {
             if ((*skipedValues)++ >= skip) {
-                UA_DataValue_copy(&item->dataStore[index]->value, &values[counter]);
+                if (range) {
+                    UA_DataValue_copyRange(&item->dataStore[index]->value, &values[counter], *range);
+                } else {
+                    UA_DataValue_copy(&item->dataStore[index]->value, &values[counter]);
+                }
                 ++counter;
             }
             --index;
@@ -250,7 +264,11 @@ copyDataValues(const void* nodeIdContext,
     } else {
         while (index <= endIndex && counter < maxValues) {
             if ((*skipedValues)++ >= skip) {
-                UA_DataValue_copy(&item->dataStore[index]->value, &values[counter]);
+                if (range) {
+                    UA_DataValue_copyRange(&item->dataStore[index]->value, &values[counter], *range);
+                } else {
+                    UA_DataValue_copy(&item->dataStore[index]->value, &values[counter]);
+                }
                 ++counter;
             }
             ++index;

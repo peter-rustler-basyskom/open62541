@@ -1530,6 +1530,7 @@ getHistoryData(const UA_HistoryDataBackend* backend,
                      size_t maxSize,
                      UA_UInt32 numValuesPerNode,
                      UA_Boolean returnBounds,
+                     UA_NumericRange * range,
                      UA_DataValue ** result,
                      size_t *resultSize,
                      UA_Boolean *hasMoreData)
@@ -1584,6 +1585,7 @@ getHistoryData(const UA_HistoryDataBackend* backend,
                                                 skip,
                                                 *resultSize - counter,
                                                 &skipCounter,
+                                                range,
                                                 &((*result)[counter]));
         counter += retval;
     }
@@ -1658,41 +1660,16 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
             response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
             response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
             response->results[i].historyData.content.decoded.data = data;
+            response->results[i].statusCode = UA_STATUSCODE_GOOD;
             data->dataValues = (UA_DataValue*)UA_Array_new(data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            UA_StatusCode getHistoryDataStatusCode;
             if (request->nodesToRead[i].indexRange.length > 0) {
-                UA_DataValue * allDataValues;
-                UA_StatusCode getHistoryDataStatusCode = getHistoryData(
-                            &variableNode->historizingSetting.historizingBackend,
-                            details->startTime,
-                            details->endTime,
-                            &request->nodesToRead[i].nodeId,
-                            skip,
-                            variableNode->historizingSetting.maxHistoryDataResponseSize,
-                            details->numValuesPerNode,
-                            details->returnBounds,
-                            &allDataValues,
-                            &data->dataValuesSize,
-                            &hasMoreValues);
-                if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
-                    response->results[i].statusCode = getHistoryDataStatusCode;
-                    UA_Nodestore_release(server, node);
-                    continue;
-                }
                 UA_NumericRange range;
                 UA_StatusCode rangeParseResult = UA_NumericRange_parseFromString(&range, &request->nodesToRead[i].indexRange);
                 if (rangeParseResult != UA_STATUSCODE_GOOD) {
                     response->results[i].statusCode = rangeParseResult;
-                    UA_Array_delete(data->dataValues, data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-                    data->dataValues = allDataValues;
-                    UA_Nodestore_release(server, node);
-                    continue;
                 }
-                for (size_t j = 0; j < data->dataValuesSize; ++j) {
-                    UA_Variant_copyRange(&allDataValues[j].value, &data->dataValues[j].value, range);
-                }
-                UA_Array_delete(allDataValues, data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-            } else {
-                UA_StatusCode getHistoryDataStatusCode = getHistoryData(
+                getHistoryDataStatusCode = getHistoryData(
                             &variableNode->historizingSetting.historizingBackend,
                             details->startTime,
                             details->endTime,
@@ -1701,16 +1678,31 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                             variableNode->historizingSetting.maxHistoryDataResponseSize,
                             details->numValuesPerNode,
                             details->returnBounds,
+                            &range,
                             &data->dataValues,
                             &data->dataValuesSize,
                             &hasMoreValues);
-                if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
-                    response->results[i].statusCode = getHistoryDataStatusCode;
-                    UA_Nodestore_release(server, node);
-                    continue;
-                }
-
+            } else {
+                getHistoryDataStatusCode = getHistoryData(
+                            &variableNode->historizingSetting.historizingBackend,
+                            details->startTime,
+                            details->endTime,
+                            &request->nodesToRead[i].nodeId,
+                            skip,
+                            variableNode->historizingSetting.maxHistoryDataResponseSize,
+                            details->numValuesPerNode,
+                            details->returnBounds,
+                            NULL,
+                            &data->dataValues,
+                            &data->dataValuesSize,
+                            &hasMoreValues);
             }
+            if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
+                response->results[i].statusCode = getHistoryDataStatusCode;
+                UA_Nodestore_release(server, node);
+                continue;
+            }
+
             if (hasMoreValues) {
                 response->results[i].continuationPoint.length = sizeof(size_t);
                 size_t t = sizeof(size_t);
