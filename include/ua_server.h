@@ -291,8 +291,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable
- *
- * Historizing is currently unsupported */
+ */
 
 /* Overwrite an attribute of a node. The specialized functions below provide a
  * more concise syntax.

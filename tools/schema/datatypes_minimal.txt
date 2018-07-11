@@ -115,3 +115,17 @@ UtcTime
 LocaleId
 RedundancySupport
 ServerDiagnosticsSummaryDataType
+HistoryReadRequest
+HistoryReadResponse
+HistoryReadResult
+HistoryReadValueId
+ReadEventDetails
+ReadRawModifiedDetails
+ReadProcessedDetails
+ReadAtTimeDetails
+HistoryData
+HistoryModifiedData
+HistoryUpdateType
+ModificationInfo
+HistoryEvent
+HistoryEventFieldList
