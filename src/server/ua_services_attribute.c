@@ -1439,14 +1439,30 @@ Service_HistoryRead(UA_Server *server,
                 response->resultsSize = request->nodesToReadSize;
 
                 response->results = (UA_HistoryReadResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+                UA_HistoryData ** historyData = (UA_HistoryData **)UA_calloc(response->resultsSize, sizeof(UA_HistoryData*));
+                for (size_t i = 0; i < response->resultsSize; ++i) {
+                    UA_HistoryData * data = UA_HistoryData_new();
+                    response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
+                    response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
+                    response->results[i].historyData.content.decoded.data = data;
+                    historyData[i] = data;
+                }
                 server->config.historyDataService.readRaw(server->config.historyDataService.context,
-                                                           server,
-                                                           session ? &session->sessionId : NULL,
-                                                           session ? session->sessionHandle : NULL,
-                                                           request,
-                                                           details,
-                                                           response,
-                                                           response->results);
+                                                          server,
+                                                          &session->sessionId,
+                                                          session->sessionHandle,
+                                                          &request->requestHeader,
+                                                          details,
+                                                          request->timestampsToReturn,
+                                                          request->releaseContinuationPoints,
+                                                          request->nodesToReadSize,
+                                                          request->nodesToRead,
+                                                          &response->responseHeader,
+                                                          &response->resultsSize,
+                                                          &response->results,
+                                                          &response->diagnosticInfosSize,
+                                                          &response->diagnosticInfos,
+                                                          historyData);
                 return;
             }
             response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;

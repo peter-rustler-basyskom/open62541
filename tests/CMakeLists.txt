@@ -1,3 +1,5 @@
+set(CMAKE_BUILD_TYPE Debug)
+
 # Load CMake Packages
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
