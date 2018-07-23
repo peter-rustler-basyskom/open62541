@@ -63,10 +63,14 @@ struct UA_HistoryDataService {
                UA_Server *server,
                const UA_NodeId *sessionId,
                void *sessionContext,
-               const UA_HistoryReadRequest *request,
-               const UA_ReadRawModifiedDetails *details,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadRawModifiedDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
                UA_HistoryReadResponse *response,
-               UA_HistoryReadResult* results);
+               UA_HistoryData ** historyData);
 
     // Add more function pointer here.
     // For example for read_event, read_modified, read_processed, read_at_time
