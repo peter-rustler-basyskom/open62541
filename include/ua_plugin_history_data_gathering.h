@@ -38,32 +38,71 @@ struct UA_HistoryDataGathering {
     void
     (*deleteMembers)(UA_HistoryDataGathering *gathering);
 
+    /* This function registers a node for the gathering of historical data.
+     *
+     * server is the server the node lives in.
+     * hdgContext is the context of the UA_HistoryDataGathering.
+     * nodeId is the node id of the node to register.
+     * setting contains the gatering settings for the node to register.
+     */
     UA_StatusCode
     (*registerNodeId)(UA_Server *server,
                       void *hdgContext,
                       const UA_NodeId *nodeId,
                       const UA_HistorizingNodeIdSettings setting);
 
+    /* This function stops polling a node for value changes.
+     *
+     * server is the server the node lives in.
+     * hdgContext is the context of the UA_HistoryDataGathering.
+     * nodeId is id of the node for which polling shall be stopped.
+     */
     UA_StatusCode
     (*stopPoll)(UA_Server *server,
                 void *hdgContext,
                 const UA_NodeId *nodeId);
 
+    /* This function starts polling a node for value changes.
+     *
+     * server is the server the node lives in.
+     * hdgContext is the context of the UA_HistoryDataGathering.
+     * nodeId is the id of the node for which polling shall be started.
+     */
     UA_StatusCode
     (*startPoll)(UA_Server *server,
                  void *hdgContext,
                  const UA_NodeId *nodeId);
 
+    /* This function modifies the gathering settings for a node.
+     *
+     * server is the server the node lives in.
+     * hdgContext is the context of the UA_HistoryDataGathering.
+     * nodeId is the node id of the node for which gathering shall be modified.
+     */
     UA_Boolean
     (*updateNodeIdSetting)(UA_Server *server,
                            void *hdgContext,
                            const UA_NodeId *nodeId,
                            const UA_HistorizingNodeIdSettings setting);
 
+    /* Returns the gathering settings for a node.
+     *
+     * server is the server the node lives in.
+     * hdgContext is the context of the UA_HistoryDataGathering.
+     * nodeId is the node id of the node for which the gathering settings shall be retrieved.
+     */
     const UA_HistorizingNodeIdSettings*
     (*getHistorizingSetting)(UA_Server *server,
                              void *hdgContext,
                              const UA_NodeId *nodeId);
+
+    /* Sets a DataValue for a node in the historical data storage.
+     *
+     * server is the server the node lives in.
+     * hdgContext is the context of the UA_HistoryDataGathering.
+     * sessionId and sessionContext identify the session which wants to set this value.
+     * nodeId is the node id of the node for which a value shall be set.
+     */
     void
     (*setValue)(UA_Server *server,
                 void *hdgContext,
