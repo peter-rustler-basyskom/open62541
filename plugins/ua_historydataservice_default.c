@@ -28,7 +28,7 @@ getResultSize_service_default(const UA_HistoryDataBackend* backend,
                               UA_Boolean *addLast,
                               UA_Boolean *reverse)
 {
-    size_t storeEnd = backend->getEnd(backend->context, server, sessionId, sessionContext, nodeId);
+    size_t storeEnd = backend->getEnd(server, backend->context, sessionId, sessionContext, nodeId);
     *startIndex = storeEnd;
     *endIndex = storeEnd;
     *addFirst = false;
@@ -45,15 +45,15 @@ getResultSize_service_default(const UA_HistoryDataBackend* backend,
     if (storeEnd > 0) {
         if (equal) {
             if (returnBounds) {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
                 if (*startIndex == storeEnd) {
-                    *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
+                    *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
                     *addFirst = true;
                 }
-                *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
-                size = backend->resultSize(backend->context, server, sessionId, sessionContext, nodeId, *startIndex, *endIndex);
+                *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
+                size = backend->resultSize(server, backend->context, sessionId, sessionContext, nodeId, *startIndex, *endIndex);
             } else {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL);
                 *endIndex = *startIndex;
                 if (*startIndex == storeEnd)
                     size = 0;
@@ -64,62 +64,62 @@ getResultSize_service_default(const UA_HistoryDataBackend* backend,
             *endIndex = 0;
             if (returnBounds) {
                 *addLast = true;
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_AFTER);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_AFTER);
                 if (*startIndex == storeEnd) {
-                    *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_BEFORE);
+                    *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_BEFORE);
                     *addFirst = true;
                 }
             } else {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_BEFORE);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_BEFORE);
             }
-            size = backend->resultSize(backend->context, server, sessionId, sessionContext, nodeId, *endIndex, *startIndex);
+            size = backend->resultSize(server, backend->context, sessionId, sessionContext, nodeId, *endIndex, *startIndex);
         } else if (end == LLONG_MIN) {
             *endIndex = storeEnd - 1;
             if (returnBounds) {
                 *addLast = true;
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
                 if (*startIndex == storeEnd) {
-                    *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
+                    *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
                     *addFirst = true;
                 }
             } else {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_AFTER);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_AFTER);
             }
-            size = backend->resultSize(backend->context, server, sessionId, sessionContext, nodeId, *startIndex, *endIndex);
+            size = backend->resultSize(server, backend->context, sessionId, sessionContext, nodeId, *startIndex, *endIndex);
         } else if (*reverse) {
             if (returnBounds) {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_AFTER);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_AFTER);
                 if (*startIndex == storeEnd) {
                     *addFirst = true;
-                    *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_BEFORE);
+                    *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_BEFORE);
                 }
-                *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_BEFORE);
+                *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_BEFORE);
                 if (*endIndex == storeEnd) {
                     *addLast = true;
-                    *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_AFTER);
+                    *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_AFTER);
                 }
             } else {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
-                *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_AFTER);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
+                *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_AFTER);
             }
-            size = backend->resultSize(backend->context, server, sessionId, sessionContext, nodeId, *endIndex, *startIndex);
+            size = backend->resultSize(server, backend->context, sessionId, sessionContext, nodeId, *endIndex, *startIndex);
         } else {
             if (returnBounds) {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_BEFORE);
                 if (*startIndex == storeEnd) {
                     *addFirst = true;
-                    *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
+                    *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_AFTER);
                 }
-                *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_AFTER);
+                *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_EQUAL_OR_AFTER);
                 if (*endIndex == storeEnd) {
                     *addLast = true;
-                    *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_BEFORE);
+                    *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_BEFORE);
                 }
             } else {
-                *startIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_AFTER);
-                *endIndex = backend->getDateTimeMatch(backend->context, server, sessionId, sessionContext, nodeId, end, MATCH_BEFORE);
+                *startIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, start, MATCH_EQUAL_OR_AFTER);
+                *endIndex = backend->getDateTimeMatch(server, backend->context, sessionId, sessionContext, nodeId, end, MATCH_BEFORE);
             }
-            size = backend->resultSize(backend->context, server, sessionId, sessionContext, nodeId, *startIndex, *endIndex);
+            size = backend->resultSize(server, backend->context, sessionId, sessionContext, nodeId, *startIndex, *endIndex);
         }
     } else if (returnBounds) {
         *addLast = true;
@@ -172,7 +172,7 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
         }
     }
 
-    size_t storeEnd = backend->getEnd(backend->context, server, sessionId, sessionContext, nodeId);
+    size_t storeEnd = backend->getEnd(server, backend->context, sessionId, sessionContext, nodeId);
     size_t startIndex;
     size_t endIndex;
     UA_Boolean addFirst;
@@ -234,8 +234,8 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
 
         UA_StatusCode ret = UA_STATUSCODE_GOOD;
         if (valueSize > 0)
-            ret = backend->copyDataValues(backend->context,
-                                          server,
+            ret = backend->copyDataValues(server,
+                                          backend->context,
                                           sessionId,
                                           sessionContext,
                                           nodeId,
@@ -261,10 +261,10 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
         outResult[counter].hasStatus = true;
         outResult[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
         outResult[counter].hasSourceTimestamp = true;
-        if (start == LLONG_MIN && storeEnd != backend->firstIndex(backend->context, server, sessionId, sessionContext, nodeId)) {
-            outResult[counter].sourceTimestamp = backend->getDataValue(backend->context, server, sessionId, sessionContext, nodeId, endIndex)->sourceTimestamp - UA_DATETIME_SEC;
-        } else if (end == LLONG_MIN && storeEnd != backend->firstIndex(backend->context, server, sessionId, sessionContext, nodeId)) {
-            outResult[counter].sourceTimestamp = backend->getDataValue(backend->context, server, sessionId, sessionContext, nodeId, endIndex)->sourceTimestamp + UA_DATETIME_SEC;
+        if (start == LLONG_MIN && storeEnd != backend->firstIndex(server, backend->context, sessionId, sessionContext, nodeId)) {
+            outResult[counter].sourceTimestamp = backend->getDataValue(server, backend->context, sessionId, sessionContext, nodeId, endIndex)->sourceTimestamp - UA_DATETIME_SEC;
+        } else if (end == LLONG_MIN && storeEnd != backend->firstIndex(server, backend->context, sessionId, sessionContext, nodeId)) {
+            outResult[counter].sourceTimestamp = backend->getDataValue(server, backend->context, sessionId, sessionContext, nodeId, endIndex)->sourceTimestamp + UA_DATETIME_SEC;
         } else {
             outResult[counter].sourceTimestamp = end;
         }
@@ -324,8 +324,8 @@ readRaw_service_default(UA_Server *server,
         }
 
         const UA_HistorizingNodeIdSettings *setting = ctx->gathering.getHistorizingSetting(
-                    ctx->gathering.context,
                     server,
+                    ctx->gathering.context,
                     &nodesToRead[i].nodeId);
 
         if (!setting) {
@@ -334,8 +334,8 @@ readRaw_service_default(UA_Server *server,
         }
 
         if (historyReadDetails->returnBounds && !setting->historizingBackend.boundSupported(
-                    setting->historizingBackend.context,
                     server,
+                    setting->historizingBackend.context,
                     sessionId,
                     sessionContext,
                     &nodesToRead[i].nodeId)) {
@@ -344,8 +344,8 @@ readRaw_service_default(UA_Server *server,
         }
 
         if (!setting->historizingBackend.timestampsToReturnSupported(
-                    setting->historizingBackend.context,
                     server,
+                    setting->historizingBackend.context,
                     sessionId,
                     sessionContext,
                     &nodesToRead[i].nodeId,
@@ -368,12 +368,12 @@ readRaw_service_default(UA_Server *server,
         UA_StatusCode getHistoryDataStatusCode;
         if (setting->historizingBackend.getHistoryData) {
             getHistoryDataStatusCode = setting->historizingBackend.getHistoryData(
-                        &setting->historizingBackend,
-                        historyReadDetails->startTime,
-                        historyReadDetails->endTime,
                         server,
                         sessionId,
                         sessionContext,
+                        &setting->historizingBackend,
+                        historyReadDetails->startTime,
+                        historyReadDetails->endTime,
                         &nodesToRead[i].nodeId,
                         setting->maxHistoryDataResponseSize,
                         historyReadDetails->numValuesPerNode,
@@ -424,8 +424,8 @@ setValue_service_default(UA_Server *server,
 {
     UA_HistoryDataServiceContext_default *ctx = (UA_HistoryDataServiceContext_default*)context;
     if (ctx->gathering.setValue)
-        ctx->gathering.setValue(ctx->gathering.context,
-                                server,
+        ctx->gathering.setValue(server,
+                                ctx->gathering.context,
                                 sessionId,
                                 sessionContext,
                                 nodeId,

@@ -31,21 +31,20 @@ struct UA_HistoryDataBackend {
     void
     (*deleteMembers)(UA_HistoryDataBackend *backend);
 
-    // Manipulation high level interface
     UA_StatusCode
-    (*serverSetHistoryData)(void *context,
-                            UA_Server *server,
+    (*serverSetHistoryData)(UA_Server *server,
+                            void *hdbContext,
                             const UA_NodeId *nodeId,
                             const UA_DataValue *value);
 
     // read raw high level interface
     UA_StatusCode
-    (*getHistoryData)(const UA_HistoryDataBackend *backend,
-                      const UA_DateTime start,
-                      const UA_DateTime end,
-                      UA_Server *server,
+    (*getHistoryData)(UA_Server *server,
                       const UA_NodeId *sessionId,
                       void *sessionContext,
+                      const UA_HistoryDataBackend *backend,
+                      const UA_DateTime start,
+                      const UA_DateTime end,
                       const UA_NodeId *nodeId,
                       size_t maxSizePerResponse,
                       UA_UInt32 numValuesPerNode,
@@ -59,8 +58,8 @@ struct UA_HistoryDataBackend {
 
     // read raw low level interface
     size_t
-    (*getDateTimeMatch)(void *context,
-                        UA_Server *server,
+    (*getDateTimeMatch)(UA_Server *server,
+                        void *hdbContext,
                         const UA_NodeId *sessionId,
                         void *sessionContext,
                         const UA_NodeId *nodeId,
@@ -68,27 +67,27 @@ struct UA_HistoryDataBackend {
                         const MatchStrategy strategy);
 
     size_t
-    (*getEnd)(void *context,
-              UA_Server *server,
+    (*getEnd)(UA_Server *server,
+              void *hdbContext,
               const UA_NodeId *sessionId,
               void *sessionContext,
               const UA_NodeId *nodeId);
     size_t
-    (*lastIndex)(void *context,
-                 UA_Server *server,
+    (*lastIndex)(UA_Server *server,
+                 void *hdbContext,
                  const UA_NodeId *sessionId,
                  void *sessionContext,
                  const UA_NodeId *nodeId);
     size_t
-    (*firstIndex)(void *context,
-                  UA_Server *server,
+    (*firstIndex)(UA_Server *server,
+                  void *hdbContext,
                   const UA_NodeId *sessionId,
                   void *sessionContext,
                   const UA_NodeId *nodeId);
 
     size_t
-    (*resultSize)(void *context,
-                  UA_Server *server,
+    (*resultSize)(UA_Server *server,
+                  void *hdbContext,
                   const UA_NodeId *sessionId,
                   void *sessionContext,
                   const UA_NodeId *nodeId,
@@ -97,8 +96,8 @@ struct UA_HistoryDataBackend {
 
 
     UA_StatusCode
-    (*copyDataValues)(void *context,
-                      UA_Server *server,
+    (*copyDataValues)(UA_Server *server,
+                      void *hdbContext,
                       const UA_NodeId *sessionId,
                       void *sessionContext,
                       const UA_NodeId *nodeId,
@@ -114,23 +113,23 @@ struct UA_HistoryDataBackend {
                       UA_DataValue *values);
 
     const UA_DataValue*
-    (*getDataValue)(void *context,
-                    UA_Server *server,
+    (*getDataValue)(UA_Server *server,
+                    void *hdbContext,
                     const UA_NodeId *sessionId,
                     void *sessionContext,
                     const UA_NodeId *nodeId,
                     size_t index);
 
     UA_Boolean
-    (*boundSupported)(void *context,
-                      UA_Server *server,
+    (*boundSupported)(UA_Server *server,
+                      void *hdbContext,
                       const UA_NodeId *sessionId,
                       void *sessionContext,
                       const UA_NodeId *nodeId);
 
     UA_Boolean
-    (*timestampsToReturnSupported)(void *context,
-                                   UA_Server *server,
+    (*timestampsToReturnSupported)(UA_Server *server,
+                                   void *hdbContext,
                                    const UA_NodeId *sessionId,
                                    void *sessionContext,
                                    const UA_NodeId *nodeId,

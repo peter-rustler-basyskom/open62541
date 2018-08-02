@@ -32,10 +32,10 @@ dataChangeCallback_gathering_default(UA_Server *server,
                                      const UA_DataValue *value)
 {
     UA_NodeIdStoreContextItem_gathering_default *context = (UA_NodeIdStoreContextItem_gathering_default*)monitoredItemContext;
-    context->setting.historizingBackend.serverSetHistoryData(context->setting.historizingBackend.context,
-                                                          server,
-                                                          nodeId,
-                                                          value);
+    context->setting.historizingBackend.serverSetHistoryData(server,
+                                                             context->setting.historizingBackend.context,
+                                                             nodeId,
+                                                             value);
 }
 
 static UA_NodeIdStoreContextItem_gathering_default*
@@ -75,8 +75,8 @@ stopPoll(UA_Server *server, UA_NodeIdStoreContextItem_gathering_default *item)
 }
 
 static UA_StatusCode
-stopPoll_gathering_default(void *context,
-                           UA_Server *server,
+stopPoll_gathering_default(UA_Server *server,
+                           void *context,
                            const UA_NodeId *nodeId)
 {
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext *)context;
@@ -92,8 +92,8 @@ stopPoll_gathering_default(void *context,
 }
 
 static UA_StatusCode
-startPoll_gathering_default(void *context,
-                            UA_Server *server,
+startPoll_gathering_default(UA_Server *server,
+                            void *context,
                             const UA_NodeId *nodeId)
 {
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext *)context;
@@ -109,8 +109,8 @@ startPoll_gathering_default(void *context,
 }
 
 static UA_StatusCode
-registerNodeId_gathering_default(void *context,
-                                 UA_Server *server,
+registerNodeId_gathering_default(UA_Server *server,
+                                 void *context,
                                  const UA_NodeId *nodeId,
                                  const UA_HistorizingNodeIdSettings setting)
 {
@@ -135,8 +135,8 @@ registerNodeId_gathering_default(void *context,
 }
 
 static const UA_HistorizingNodeIdSettings*
-getHistorizingSetting_gathering_default(void *context,
-                                        UA_Server *server,
+getHistorizingSetting_gathering_default(UA_Server *server,
+                                        void *context,
                                         const UA_NodeId *nodeId)
 {
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext*)context;
@@ -164,8 +164,8 @@ deleteMembers_gathering_default(UA_HistoryDataGathering *gathering)
 }
 
 static UA_Boolean
-updateNodeIdSetting_gathering_default(void *context,
-                                      UA_Server *server,
+updateNodeIdSetting_gathering_default(UA_Server *server,
+                                      void *context,
                                       const UA_NodeId *nodeId,
                                       const UA_HistorizingNodeIdSettings setting)
 {
@@ -174,14 +174,14 @@ updateNodeIdSetting_gathering_default(void *context,
     if (!item) {
         return false;
     }
-    stopPoll_gathering_default(context, server, nodeId);
+    stopPoll_gathering_default(server, context, nodeId);
     item->setting = setting;
     return true;
 }
 
 static void
-setValue_gathering_default(void *context,
-                           UA_Server *server,
+setValue_gathering_default(UA_Server *server,
+                           void *context,
                            const UA_NodeId *sessionId,
                            void *sessionContext,
                            const UA_NodeId *nodeId,
@@ -193,10 +193,10 @@ setValue_gathering_default(void *context,
         return;
     }
     if (item->setting.historizingUpdateStrategy == UA_HISTORIZINGUPDATESTRATEGY_VALUESET) {
-        item->setting.historizingBackend.serverSetHistoryData(item->setting.historizingBackend.context,
-                                                           server,
-                                                           nodeId,
-                                                           value);
+        item->setting.historizingBackend.serverSetHistoryData(server,
+                                                              item->setting.historizingBackend.context,
+                                                              nodeId,
+                                                              value);
     }
 }
 

@@ -190,7 +190,7 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend)
         value.sourceTimestamp = currentDateTime;
         value.hasStatus = true;
         value.status = UA_STATUSCODE_GOOD;
-        if (backend.serverSetHistoryData(backend.context, server, &outNodeId, &value) != UA_STATUSCODE_GOOD) {
+        if (backend.serverSetHistoryData(server, backend.context, &outNodeId, &value) != UA_STATUSCODE_GOOD) {
             fprintf(stderr, "\n");
             return false;
         }
@@ -244,10 +244,10 @@ requestHistory(UA_DateTime start,
 static UA_UInt32
 testHistoricalDataBackend(size_t maxResponseSize)
 {
-    const UA_HistorizingNodeIdSettings* setting = gathering->getHistorizingSetting(gathering->context, server, &outNodeId);
+    const UA_HistorizingNodeIdSettings* setting = gathering->getHistorizingSetting(server, gathering->context, &outNodeId);
     UA_HistorizingNodeIdSettings newSetting = *setting;
     newSetting.maxHistoryDataResponseSize = maxResponseSize;
-    gathering->updateNodeIdSetting(gathering->context, server, &outNodeId, newSetting);
+    gathering->updateNodeIdSetting(server, gathering->context, &outNodeId, newSetting);
 
     UA_UInt32 retval = 0;
     size_t i = 0;
@@ -409,7 +409,7 @@ START_TEST(Server_HistorizingStrategyUser)
     setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
     setting.maxHistoryDataResponseSize = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    UA_StatusCode retval = gathering->registerNodeId(gathering->context, server, &outNodeId, setting);
+    UA_StatusCode retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
@@ -424,8 +424,8 @@ START_TEST(Server_HistorizingStrategyUser)
         UA_Variant_setScalarCopy(&value.value, &i, &UA_TYPES[UA_TYPES_UINT32]);
         value.hasSourceTimestamp = true;
         value.sourceTimestamp = start + (i * UA_DATETIME_SEC);
-        retval = setting.historizingBackend.serverSetHistoryData(setting.historizingBackend.context,
-                                                                 server,
+        retval = setting.historizingBackend.serverSetHistoryData(server,
+                                                                 setting.historizingBackend.context,
                                                                  &outNodeId,
                                                                  &value);
         ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -474,12 +474,12 @@ START_TEST(Server_HistorizingStrategyPoll)
     setting.maxHistoryDataResponseSize = 100;
     setting.pollingInterval = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_POLL;
-    retval = gathering->registerNodeId(gathering->context, server, &outNodeId, setting);
+    retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
     UA_DateTime start = UA_DateTime_now();
-    retval = gathering->startPoll(gathering->context, server, &outNodeId);
+    retval = gathering->startPoll(server, gathering->context, &outNodeId);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -487,7 +487,7 @@ START_TEST(Server_HistorizingStrategyPoll)
         UA_fakeSleep(50);
         UA_realSleep(50);
         if (k == 5) {
-            gathering->stopPoll(gathering->context, server, &outNodeId);
+            gathering->stopPoll(server, gathering->context, &outNodeId);
         }
         setUInt32(client, outNodeId, (unsigned int)k);
     }
@@ -540,7 +540,7 @@ START_TEST(Server_HistorizingStrategyValueSet)
     setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
     setting.maxHistoryDataResponseSize = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
-    retval = gathering->registerNodeId(gathering->context, server, &outNodeId, setting);
+    retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
@@ -590,7 +590,7 @@ START_TEST(Server_HistorizingBackendMemory)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    UA_StatusCode ret = gathering->registerNodeId(gathering->context, server, &outNodeId, setting);
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // empty backend should not crash

@@ -128,8 +128,8 @@ binarySearch_backend_memory(const UA_NodeIdStoreContextItem_backend_memory* item
 }
 
 static size_t
-resultSize_backend_memory(void *context,
-                          UA_Server *server,
+resultSize_backend_memory(UA_Server *server,
+                          void *context,
                           const UA_NodeId *sessionId,
                           void *sessionContext,
                           const UA_NodeId * nodeId,
@@ -144,8 +144,8 @@ resultSize_backend_memory(void *context,
 }
 
 static size_t
-getDateTimeMatch_backend_memory(void *context,
-                                UA_Server *server,
+getDateTimeMatch_backend_memory(UA_Server *server,
+                                void *context,
                                 const UA_NodeId *sessionId,
                                 void *sessionContext,
                                 const UA_NodeId * nodeId,
@@ -183,8 +183,8 @@ getDateTimeMatch_backend_memory(void *context,
 
 
 static UA_StatusCode
-serverSetHistoryData_backend_memory(void *context,
-                                    UA_Server *server,
+serverSetHistoryData_backend_memory(UA_Server *server,
+                                    void *context,
                                     const UA_NodeId * nodeId,
                                     const UA_DataValue *value)
 {
@@ -210,8 +210,8 @@ serverSetHistoryData_backend_memory(void *context,
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
-    size_t index = getDateTimeMatch_backend_memory(context,
-                                                   server,
+    size_t index = getDateTimeMatch_backend_memory(server,
+                                                   context,
                                                    NULL,
                                                    NULL,
                                                    nodeId,
@@ -232,8 +232,8 @@ UA_MemoryStoreContext_delete(UA_MemoryStoreContext* ctx) {
 }
 
 static size_t
-getEnd_backend_memory(void *context,
-                      UA_Server *server,
+getEnd_backend_memory(UA_Server *server,
+                      void *context,
                       const UA_NodeId *sessionId,
                       void *sessionContext,
                       const UA_NodeId * nodeId) {
@@ -242,8 +242,8 @@ getEnd_backend_memory(void *context,
 }
 
 static size_t
-lastIndex_backend_memory(void *context,
-                         UA_Server *server,
+lastIndex_backend_memory(UA_Server *server,
+                         void *context,
                          const UA_NodeId *sessionId,
                          void *sessionContext,
                          const UA_NodeId * nodeId) {
@@ -252,8 +252,8 @@ lastIndex_backend_memory(void *context,
 }
 
 static size_t
-firstIndex_backend_memory(void *context,
-                          UA_Server *server,
+firstIndex_backend_memory(UA_Server *server,
+                          void *context,
                           const UA_NodeId *sessionId,
                           void *sessionContext,
                           const UA_NodeId * nodeId) {
@@ -261,8 +261,8 @@ firstIndex_backend_memory(void *context,
 }
 
 static UA_Boolean
-boundSupported_backend_memory(void *context,
-                              UA_Server *server,
+boundSupported_backend_memory(UA_Server *server,
+                              void *context,
                               const UA_NodeId *sessionId,
                               void *sessionContext,
                               const UA_NodeId * nodeId) {
@@ -270,8 +270,8 @@ boundSupported_backend_memory(void *context,
 }
 
 static UA_Boolean
-timestampsToReturnSupported_backend_memory(void *context,
-                                           UA_Server *server,
+timestampsToReturnSupported_backend_memory(UA_Server *server,
+                                           void *context,
                                            const UA_NodeId *sessionId,
                                            void *sessionContext,
                                            const UA_NodeId *nodeId,
@@ -295,8 +295,8 @@ timestampsToReturnSupported_backend_memory(void *context,
 }
 
 static const UA_DataValue*
-getDataValue_backend_memory(void *context,
-                            UA_Server *server,
+getDataValue_backend_memory(UA_Server *server,
+                            void *context,
                             const UA_NodeId *sessionId,
                             void *sessionContext,
                             const UA_NodeId * nodeId, size_t index) {
@@ -315,8 +315,8 @@ UA_DataValue_backend_copyRange(const UA_DataValue *src, UA_DataValue *dst,
 }
 
 static UA_StatusCode
-copyDataValues_backend_memory(void *context,
-                              UA_Server *server,
+copyDataValues_backend_memory(UA_Server *server,
+                              void *context,
                               const UA_NodeId *sessionId,
                               void *sessionContext,
                               const UA_NodeId * nodeId,

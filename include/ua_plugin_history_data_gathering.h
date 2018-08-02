@@ -39,34 +39,34 @@ struct UA_HistoryDataGathering {
     (*deleteMembers)(UA_HistoryDataGathering *gathering);
 
     UA_StatusCode
-    (*registerNodeId)(void *context,
-                      UA_Server *server,
+    (*registerNodeId)(UA_Server *server,
+                      void *hdgContext,
                       const UA_NodeId *nodeId,
                       const UA_HistorizingNodeIdSettings setting);
 
     UA_StatusCode
-    (*stopPoll)(void *context,
-                UA_Server *server,
+    (*stopPoll)(UA_Server *server,
+                void *hdgContext,
                 const UA_NodeId *nodeId);
 
     UA_StatusCode
-    (*startPoll)(void *context,
-                 UA_Server *server,
+    (*startPoll)(UA_Server *server,
+                 void *hdgContext,
                  const UA_NodeId *nodeId);
 
     UA_Boolean
-    (*updateNodeIdSetting)(void *context,
-                           UA_Server *server,
+    (*updateNodeIdSetting)(UA_Server *server,
+                           void *hdgContext,
                            const UA_NodeId *nodeId,
                            const UA_HistorizingNodeIdSettings setting);
 
     const UA_HistorizingNodeIdSettings*
-    (*getHistorizingSetting)(void *context,
-                             UA_Server *server,
+    (*getHistorizingSetting)(UA_Server *server,
+                             void *hdgContext,
                              const UA_NodeId *nodeId);
     void
-    (*setValue)(void *context,
-                UA_Server *server,
+    (*setValue)(UA_Server *server,
+                void *hdgContext,
                 const UA_NodeId *sessionId,
                 void *sessionContext,
                 const UA_NodeId *nodeId,
