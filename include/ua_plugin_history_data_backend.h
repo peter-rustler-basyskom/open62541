@@ -35,14 +35,19 @@ struct UA_HistoryDataBackend {
      *
      * server is the server the node lives in.
      * hdbContext is the context of the UA_HistoryDataBackend.
+     * sessionId and sessionContext identify the session that wants to read historical data.
      * nodeId is the node for which the value shall be stored.
      * value is the value which shall be stored.
+     * historizing is the historizing flag of the node identified by nodeId.
+     * If sessionId is NULL, the historizing flag is invalid and must not be used.
      */
-    // TODO add historizing flag and session parameter
     UA_StatusCode
     (*serverSetHistoryData)(UA_Server *server,
                             void *hdbContext,
+                            const UA_NodeId *sessionId,
+                            void *sessionContext,
                             const UA_NodeId *nodeId,
+                            UA_Boolean historizing,
                             const UA_DataValue *value);
 
     /* This function is the high level interface for the ReadRaw operation.

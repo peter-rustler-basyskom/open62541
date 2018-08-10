@@ -429,6 +429,7 @@ setValue_service_default(UA_Server *server,
                                 sessionId,
                                 sessionContext,
                                 nodeId,
+                                historizing,
                                 value);
 }
 

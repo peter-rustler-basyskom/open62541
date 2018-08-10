@@ -34,7 +34,10 @@ dataChangeCallback_gathering_default(UA_Server *server,
     UA_NodeIdStoreContextItem_gathering_default *context = (UA_NodeIdStoreContextItem_gathering_default*)monitoredItemContext;
     context->setting.historizingBackend.serverSetHistoryData(server,
                                                              context->setting.historizingBackend.context,
+                                                             NULL,
+                                                             NULL,
                                                              nodeId,
+                                                             UA_FALSE,
                                                              value);
 }
 
@@ -185,6 +188,7 @@ setValue_gathering_default(UA_Server *server,
                            const UA_NodeId *sessionId,
                            void *sessionContext,
                            const UA_NodeId *nodeId,
+                           UA_Boolean historizing,
                            const UA_DataValue *value)
 {
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext*)context;
@@ -195,7 +199,10 @@ setValue_gathering_default(UA_Server *server,
     if (item->setting.historizingUpdateStrategy == UA_HISTORIZINGUPDATESTRATEGY_VALUESET) {
         item->setting.historizingBackend.serverSetHistoryData(server,
                                                               item->setting.historizingBackend.context,
+                                                              sessionId,
+                                                              sessionContext,
                                                               nodeId,
+                                                              historizing,
                                                               value);
     }
 }

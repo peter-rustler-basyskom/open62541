@@ -185,7 +185,10 @@ getDateTimeMatch_backend_memory(UA_Server *server,
 static UA_StatusCode
 serverSetHistoryData_backend_memory(UA_Server *server,
                                     void *context,
+                                    const UA_NodeId *sessionId,
+                                    void *sessionContext,
                                     const UA_NodeId * nodeId,
+                                    UA_Boolean historizing,
                                     const UA_DataValue *value)
 {
     UA_NodeIdStoreContextItem_backend_memory *item = getNodeIdStoreContextItem_backend_memory((UA_MemoryStoreContext*)context, server, nodeId);

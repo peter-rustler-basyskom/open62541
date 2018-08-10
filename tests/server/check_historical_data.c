@@ -190,7 +190,7 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend)
         value.sourceTimestamp = currentDateTime;
         value.hasStatus = true;
         value.status = UA_STATUSCODE_GOOD;
-        if (backend.serverSetHistoryData(server, backend.context, &outNodeId, &value) != UA_STATUSCODE_GOOD) {
+        if (backend.serverSetHistoryData(server, backend.context, NULL, NULL, &outNodeId, UA_FALSE, &value) != UA_STATUSCODE_GOOD) {
             fprintf(stderr, "\n");
             return false;
         }
@@ -426,7 +426,10 @@ START_TEST(Server_HistorizingStrategyUser)
         value.sourceTimestamp = start + (i * UA_DATETIME_SEC);
         retval = setting.historizingBackend.serverSetHistoryData(server,
                                                                  setting.historizingBackend.context,
+                                                                 NULL,
+                                                                 NULL,
                                                                  &outNodeId,
+                                                                 UA_FALSE,
                                                                  &value);
         ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
         UA_DataValue_deleteMembers(&value);

@@ -103,13 +103,13 @@ struct UA_HistoryDataGathering {
      * sessionId and sessionContext identify the session which wants to set this value.
      * nodeId is the node id of the node for which a value shall be set.
      */
-    // TODO add historizing flag
     void
     (*setValue)(UA_Server *server,
                 void *hdgContext,
                 const UA_NodeId *sessionId,
                 void *sessionContext,
                 const UA_NodeId *nodeId,
+                UA_Boolean historizing,
                 const UA_DataValue *value);
 };
 
