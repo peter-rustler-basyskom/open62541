@@ -38,6 +38,7 @@ struct UA_HistoryDataBackend {
      * nodeId is the node for which the value shall be stored.
      * value is the value which shall be stored.
      */
+    // TODO add historizing flag and session parameter
     UA_StatusCode
     (*serverSetHistoryData)(UA_Server *server,
                             void *hdbContext,
@@ -45,6 +46,10 @@ struct UA_HistoryDataBackend {
                             const UA_DataValue *value);
 
     /* This function is the high level interface for the ReadRaw operation.
+     * Set it to NULL if you use the low level API for your plugin.
+     * It should be used if the low level interface does not suite your database.
+     * It is more complex to implement the high level interface but it also provide more freedom.
+     * If you implement this, then set all low level api function pointer to NULL.
      *
      * server is the server the node lives in.
      * hdbContext is the context of the UA_HistoryDataBackend.
@@ -53,7 +58,8 @@ struct UA_HistoryDataBackend {
      * start is the start time of the HistoryRead request.
      * end is the end time of the HistoryRead request.
      * nodeId is the node id of the node for which historical data is requested.
-     * maxSizePerResponse is the maximum number of items per response the client wants to receive.
+     * maxSizePerResponse is the maximum number of items per response the server can provide.
+     * numValuesPerNode is the maximum number of items per response the client wants to receive.
      * returnBounds determines if the client wants to receive bounding values.
      * timestampsToReturn contains the time stamps the client is interested in.
      * range is the numeric range the client wants to read.
@@ -145,7 +151,7 @@ struct UA_HistoryDataBackend {
                   const UA_NodeId *nodeId);
 
     /* This function is part of the low level HistoryRead API.
-     * It returns the number of elements between startIndex and endIndex.
+     * It returns the number of elements between startIndex and endIndex including both.
      *
      * server is the server the node lives in.
      * hdbContext is the context of the UA_HistoryDataBackend.
@@ -173,7 +179,7 @@ struct UA_HistoryDataBackend {
      * startIndex is the index of the first value in the range.
      * endIndex is the index of the last value in the range.
      * reverse determines if the values shall be copied in reverse order.
-     * valueSize is the maximal number of data values.
+     * valueSize is the maximal number of data values to copy.
      * range is the numeric range which shall be copied for every data value.
      * releaseContinuationPoints determines if the continuation points shall be released.
      * continuationPoint is a continuation point the client wants to release or start from.
@@ -215,8 +221,8 @@ struct UA_HistoryDataBackend {
                     const UA_NodeId *nodeId,
                     size_t index);
 
-    /* This function is part of the low level HistoryRead API.
-     * It returns UA_TRUE if the backend supports returning bounding values for a node.
+    /* This function returns UA_TRUE if the backend supports returning bounding values for a node.
+     * This function is mandatory.
      *
      * server is the server the node lives in.
      * hdbContext is the context of the UA_HistoryDataBackend.
@@ -230,8 +236,8 @@ struct UA_HistoryDataBackend {
                       void *sessionContext,
                       const UA_NodeId *nodeId);
 
-    /* This function is part of the low level HistoryRead API.
-     * It returns UA_TRUE if the backend supports returning the requested timestamps for a node.
+    /* This function returns UA_TRUE if the backend supports returning the requested timestamps for a node.
+     * This function is mandatory.
      *
      * server is the server the node lives in.
      * hdbContext is the context of the UA_HistoryDataBackend.
